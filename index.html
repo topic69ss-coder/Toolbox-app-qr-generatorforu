@@ -103,8 +103,7 @@
     <h3>About Toolbox - QR Generator</h3>
     <p class="small"><b>Developer:</b> Saikiran</p>
     <p class="small"><b>Instagram:</b> @saikiran.jinde_2706</p>
-    <p class="small" style="margin-top:10px">This app is created by a Diploma 2nd-year student using AI.  
-    It contains calculator, unit converters, and a QR generator for users.</p>
+    <p class="small" style="margin-top:10px">A compact mobile-first toolbox with calculator, converters and a QR generator. QR creation uses Google Chart API for generating images of QR codes.</p>
     <button id="closeModal" style="background:#ddd;color:#111;border-radius:8px;padding:8px 12px;border:none;margin-top:12px">Close</button>
   </div>
 </div>
@@ -177,7 +176,7 @@
 
         <p id="qrMsg" style="margin-top:10px;"></p>
 
-        <!-- ⭐ ADSTERRA BANNER HERE ⭐ -->
+        <!-- ADSTERRA BANNER (320x50) -->
         <div style="width:100%;text-align:center;margin-top:12px;">
             <script type="text/javascript">
                 atOptions = {
@@ -206,8 +205,8 @@
 </div>
 
 <script>
+/* ---------------- Bottom Navigation ---------------- */
 const title=document.getElementById("screenTitle");
-
 document.querySelectorAll(".nav-item").forEach(item=>{
     item.addEventListener("click",()=>{
         document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("active"));
@@ -220,6 +219,7 @@ document.querySelectorAll(".nav-item").forEach(item=>{
     });
 });
 
+/* ---------------- Calculator ---------------- */
 let calc="";const display=document.getElementById("calcDisplay");
 document.getElementById("calcKeys").addEventListener("click",(e)=>{
     let key=e.target.innerText;
@@ -228,20 +228,19 @@ document.getElementById("calcKeys").addEventListener("click",(e)=>{
     calc+=key;display.textContent=calc;
 });
 
+/* ---------------- Converters ---------------- */
 function convertWeight(){
     let v=Number(wValue.value);
     let g={kg:v*1000,g:v,lb:v*453.592}[wFrom.value];
     let out={kg:g/1000,g:g,lb:g/453.592}[wTo.value];
     wResult.textContent=`${v} ${wFrom.value} = ${out.toFixed(4)} ${wTo.value}`;
 }
-
 function convertCurrency(){
     let v=Number(cValue.value);
     let usd=cFrom.value==="INR"?v/83:v;
     let out=cTo.value==="INR"?usd*83:usd;
     cResult.textContent=`${v} ${cFrom.value} = ${out.toFixed(3)} ${cTo.value}`;
 }
-
 function convertDistance(){
     let v=Number(dValue.value);
     let m=dFrom.value==="km"?v*1000:v;
@@ -249,37 +248,101 @@ function convertDistance(){
     dResult.textContent=`${v} ${dFrom.value} = ${out.toFixed(4)} ${dTo.value}`;
 }
 
+/* ---------------- QR Generator + Interstitial ---------------- */
 let qrURL="";
-document.getElementById("makeQR").onclick=()=>{
-    const text=(qrText.value||"").trim();
-    const file=qrFile.files[0];
+let pendingContent=""; // content waiting to generate after ad
+let interstitialTimeout=null;
 
-    if(!text && !file){
-        qrMsg.textContent="Enter text or upload file.";
-        return;
-    }
-
-    if(file){
-        const reader=new FileReader();
-        reader.onload=e=>{generateQR(e.target.result);}
-        reader.readAsDataURL(file);
-        return;
-    }
-    generateQR(text);
-};
+// helper to read file
+function readFileAsDataURL(file){
+    return new Promise((resolve,reject)=>{
+        const r=new FileReader();
+        r.onload=()=>resolve(r.result);
+        r.onerror=()=>reject(r.error);
+        r.readAsDataURL(file);
+    });
+}
 
 function generateQR(content){
     qrURL=`https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(content)}`;
-    qrPreview.innerHTML=`<img src="${qrURL}" style="width:200px;">`;
+    qrPreview.innerHTML=`<img src="${qrURL}" style="width:200px;max-width:100%;">`;
     thank.style.display="block";
+    qrMsg.textContent='QR generated. Download or share.';
 }
 
-document.getElementById("downloadQR").onclick=()=>{
-    if(!qrURL)return;
-    let a=document.createElement("a");
-    a.href=qrURL;a.download="qr.png";a.click();
+// inject interstitial script and show ad, then proceed
+function showInterstitialThenGenerate(){
+    // ensure pendingContent set
+    if(!pendingContent){
+        qrMsg.textContent="Nothing to generate.";
+        return;
+    }
+
+    // create container to inject script
+    let interDiv=document.getElementById("interstitialBox");
+    if(!interDiv){
+        interDiv=document.createElement("div");
+        interDiv.id="interstitialBox";
+        interDiv.style.display="none";
+        document.body.appendChild(interDiv);
+    } else {
+        interDiv.innerHTML="";
+    }
+
+    // inject interstitial script (user-provided)
+    interDiv.innerHTML = "<script type='text/javascript' src='//pl28156315.effectivegatecpm.com/b0/b1/55/b0b1558127916e4719db92df414595d2.js'><\/script>";
+
+    // fallback timer: if ad doesn't trigger, proceed after 4.5s
+    if(interstitialTimeout) clearTimeout(interstitialTimeout);
+    interstitialTimeout = setTimeout(()=>{
+        // proceed anyway
+        proceedAfterAd();
+    },4500);
+}
+
+// call this to continue after ad
+function proceedAfterAd(){
+    if(interstitialTimeout){ clearTimeout(interstitialTimeout); interstitialTimeout=null; }
+    if(!pendingContent) return;
+    generateQR(pendingContent);
+    pendingContent="";
+}
+
+// wire Generate button to read input then show interstitial
+document.getElementById("makeQR").onclick = async ()=>{
+    qrMsg.textContent="";
+    pendingContent="";
+    const text=(qrText.value||"").trim();
+    const fileEl=document.getElementById('qrFile');
+
+    if(!text && (!fileEl || fileEl.files.length===0)){
+        qrMsg.textContent="Enter text or upload a file.";
+        return;
+    }
+
+    if(fileEl && fileEl.files.length){
+        try{
+            qrMsg.textContent="Preparing file...";
+            pendingContent = await readFileAsDataURL(fileEl.files[0]);
+        }catch(e){
+            qrMsg.textContent="File read error.";
+            return;
+        }
+    } else {
+        pendingContent = text;
+    }
+
+    // now show interstitial
+    showInterstitialThenGenerate();
 };
 
+document.getElementById("downloadQR").onclick=()=>{
+    if(!qrURL) return;
+    const a=document.createElement("a");
+    a.href=qrURL; a.download="toolbox-qr.png"; document.body.appendChild(a); a.click(); a.remove();
+};
+
+/* ---------- Three-dots menu behavior ---------- */
 const dotsBtn=document.getElementById("dotsBtn");
 const dotsMenu=document.getElementById("dotsMenu");
 const modal=document.getElementById("modalBackdrop");
@@ -293,18 +356,16 @@ dotsBtn.onclick=e=>{
 };
 document.onclick=()=>closeMenu();
 
-menuAbout.onclick=()=>{
-    modal.style.display="flex";
-    closeMenu();
+document.getElementById("menuAbout").onclick=()=>{
+    modal.style.display="flex"; closeMenu();
 };
-closeModal.onclick=()=>modal.style.display="none";
+document.getElementById("closeModal").onclick=()=>modal.style.display="none";
 
-menuInstagram.onclick=()=>{
+document.getElementById("menuInstagram").onclick=()=>{
     window.open("https://instagram.com/saikiran.jinde_2706","_blank");
     closeMenu();
 };
-
 </script>
 
 </body>
-           </html>
+                                                                                       </html>
