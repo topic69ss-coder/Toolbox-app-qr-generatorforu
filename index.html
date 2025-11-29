@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Toolbox - QR Generator</title>
+<!-- qrcode lib -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:Inter,Arial,system-ui}
+  body{background:#f2f3f7;min-height:100vh;padding-bottom:110px}
+  header{position:sticky;top:0;background:#fff;padding:14px;text-align:center;font-weight:700;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,0.06);z-index:60}
+
+  .app{max-width:720px;margin:0 auto;padding:12px}
+  .screen{display:none}
+  .screen.active{display:block}
+
+  .card{background:#fff;border-radius:12px;padding:16px;margin:14px 0;box-shadow:0 6px 20px rgba(2,6,23,0.05)}
+  input,select,button{width:100%;padding:12px;margin-top:10px;border-radius:10px;border:1px solid #e6e6e6}
+  button{background:#6c63ff;color:#fff;border:none;font-weight:700;cursor:pointer}
+  .display{background:#111;color:#fff;padding:12px;border-radius:10px;font-size:20px;text-align:right}
+  .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+  .key{background:#fff;padding:14px;border-radius:8px;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,0.05);cursor:pointer}
+  .op{background:#6c63ff;color:#fff}
+
+  #qrPreview{height:260px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-top:12px;overflow:hidden}
+  #qrPreview img{max-width:90%;max-height:90%}
+
+  /* three dots menu */
+  .three-dots{position:fixed;right:12px;top:12px;z-index:70}
+  .three-dots button{width:42px;height:42px;border-radius:10px;border:none;background:rgba(0,0,0,0.06);font-size:20px;cursor:pointer}
+  .menu-popup{position:fixed;right:12px;top:62px;width:220px;background:#fff;border-radius:10px;padding:8px;box-shadow:0 12px 30px rgba(2,6,23,0.12);display:none;z-index:71}
+  .menu-popup a, .menu-popup button{display:block;padding:8px 10px;border-radius:8px;text-align:left;background:transparent;border:none;color:#222;text-decoration:none;margin:4px 0;cursor:pointer}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;z-index:72}
+  .modal{background:#fff;padding:16px;border-radius:12px;width:92%;max-width:420px}
+
+  /* bottom nav */
+  .bottom-nav{position:fixed;left:0;right:0;bottom:0;height:68px;background:#fff;border-top:1px solid #eee;display:flex;z-index:65}
+  .nav-item{flex:1;text-align:center;padding-top:8px;font-size:12px;color:#666;cursor:pointer}
+  .nav-item span{display:block;font-size:20px}
+  .nav-item.active{color:#6c63ff;font-weight:700}
+
+  /* global banner container (above bottom nav) */
+  #globalBanner{position:fixed;left:0;right:0;bottom:68px;height:72px;display:flex;align-items:center;justify-content:center;background:#fff;border-top:1px solid #eee;z-index:64}
+
+  .note{color:#b22;margin-top:10px;text-align:center}
+
+  @media(min-width:900px){ .app{padding:18px} }
+</style>
+</head>
+<body>
+
+<header id="title">Toolbox - QR Generator</header>
+
+<!-- three-dots menu -->
+<div class="three-dots">
+  <button id="dotsBtn">⋮</button>
+  <div class="menu-popup" id="dotsMenu" role="menu" aria-hidden="true">
+    <a href="#" id="menuAbout">About</a>
+    <button id="menuInstagram">Instagram</button>
+  </div>
+</div>
+
+<!-- about modal -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" role="dialog">
+    <h3>About</h3>
+    <p class="small"><strong>Developer:</strong> Saikiran</p>
+    <p class="small"><strong>Instagram:</strong> @saikiran.jinde_2706</p>
+    <p style="margin-top:10px">A compact mobile-first toolbox with calculator, converters and a QR generator. QR uses client-side generation for reliability.</p>
+    <div style="text-align:right;margin-top:12px"><button id="closeModal" style="background:#ddd;color:#111;border-radius:8px;padding:8px 12px;border:none">Close</button></div>
+  </div>
+</div>
+
+<div class="app">
+  <!-- Screens (only one active) -->
+  <section id="screen-calc" class="screen active">
+    <div class="card">
+      <div class="display" id="calcDisplay">0</div>
+      <div class="keys" id="calcKeys">
+        <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">/</div>
+        <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">*</div>
+        <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">-</div>
+        <div class="key">0</div><div class="key">.</div><div class="key" id="clear">C</div><div class="key op">+</div>
+        <div class="key op" id="equals" style="grid-column:span 4;background:#ff6b6b">=</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-weight" class="screen">
+    <div class="card">
+      <h3>Weight Converter</h3>
+      <input id="wValue" type="number" placeholder="Enter value">
+      <select id="wFrom"><option value="kg">Kg</option><option value="g">Gram</option><option value="lb">Pound</option></select>
+      <select id="wTo"><option value="g">Gram</option><option value="kg">Kg</option><option value="lb">Pound</option></select>
+      <button onclick="convertWeight()">Convert</button>
+      <p id="wResult"></p>
+    </div>
+  </section>
+
+  <section id="screen-currency" class="screen">
+    <div class="card">
+      <h3>Currency Converter</h3>
+      <input id="cValue" type="number" placeholder="Amount">
+      <select id="cFrom"><option>INR</option><option>USD</option></select>
+      <select id="cTo"><option>USD</option><option>INR</option></select>
+      <button onclick="convertCurrency()">Convert</button>
+      <p id="cResult"></p>
+    </div>
+  </section>
+
+  <section id="screen-distance" class="screen">
+    <div class="card">
+      <h3>Distance Converter</h3>
+      <input id="dValue" type="number" placeholder="Value">
+      <select id="dFrom"><option>km</option><option>m</option></select>
+      <select id="dTo"><option>m</option><option>km</option></select>
+      <button onclick="convertDistance()">Convert</button>
+      <p id="dResult"></p>
+    </div>
+  </section>
+
+  <section id="screen-qr" class="screen">
+    <div class="card">
+      <h3>QR Generator</h3>
+      <input id="qrText" placeholder="Enter text/URL">
+      <input id="qrFile" type="file">
+      <button id="makeQR">Generate QR</button>
+      <div id="qrPreview">No QR yet</div>
+
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button id="downloadQR" style="background:#ff6b6b;flex:1">Download</button>
+        <button id="openQR" style="background:#444;color:#fff;flex:1">Open image</button>
+      </div>
+
+      <p id="qrMsg" style="margin-top:10px"></p>
+      <p id="screenshotNote" class="note">take a screenshot if download doesn't work</p>
+
+      <div id="interstitialBox" style="display:none"></div>
+    </div>
+  </section>
+</div>
+
+<!-- Global banner (fixed above bottom nav) -->
+<div id="globalBanner" aria-hidden="false">
+  <div id="bannerWrap" style="width:320px;max-width:95%;text-align:center">
+    <script type="text/javascript">
+      atOptions = {
+        'key' : 'c533f92842a99236b1cb6736b289861e',
+        'format' : 'iframe',
+        'height' : 50,
+        'width' : 320,
+        'params' : {}
+      };
+    </script>
+    <script type="text/javascript" src="//www.highperformanceformat.com/c533f92842a99236b1cb6736b289861e/invoke.js"></script>
+  </div>
+</div>
+
+<!-- Bottom nav -->
+<div class="bottom-nav" id="bottomNav">
+  <div class="nav-item active" data-target="calc"><span>🧮</span>Calc</div>
+  <div class="nav-item" data-target="weight"><span>⚖️</span>Weight</div>
+  <div class="nav-item" data-target="currency"><span>💱</span>Currency</div>
+  <div class="nav-item" data-target="distance"><span>📏</span>Distance</div>
+  <div class="nav-item" data-target="qr"><span>📷</span>QR</div>
+</div>
+
+<script>
+/* ---------- Navigation: show only chosen screen ---------- */
+const navItems = document.querySelectorAll('.nav-item');
+function showScreen(key){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-' + key).classList.add('active');
+  document.getElementById('title').textContent = {
+    calc:'Calculator', weight:'Weight Converter', currency:'Currency Converter', distance:'Distance Converter', qr:'QR Generator'
+  }[key];
+  navItems.forEach(n=>n.classList.toggle('active', n.getAttribute('data-target')===key));
+}
+navItems.forEach(item=>{
+  item.addEventListener('click', ()=> showScreen(item.getAttribute('data-target')));
+});
+
+/* ---------- Three dots menu ---------- */
+const dotsBtn = document.getElementById('dotsBtn');
+const dotsMenu = document.getElementById('dotsMenu');
+const modal = document.getElementById('modalBackdrop');
+dotsBtn.addEventListener('click', e=>{ e.stopPropagation(); dotsMenu.style.display = (dotsMenu.style.display==='block')? 'none':'block'; });
+document.addEventListener('click', ()=> dotsMenu.style.display='none');
+document.getElementById('menuAbout').addEventListener('click', e=>{ e.preventDefault(); modal.style.display='flex'; dotsMenu.style.display='none'; });
+document.getElementById('closeModal').addEventListener('click', ()=> modal.style.display='none');
+document.getElementById('menuInstagram').addEventListener('click', ()=> { window.open('https://instagram.com/saikiran.jinde_2706','_blank'); dotsMenu.style.display='none'; });
+
+/* ---------- Calculator ---------- */
+let calc = "", display = document.getElementById('calcDisplay');
+document.getElementById('calcKeys').addEventListener('click',(e)=>{
+  const t = e.target.innerText;
+  if(!t) return;
+  if(t==='C'){ calc=''; display.textContent='0'; return; }
+  if(t==='='){ try{ calc = eval(calc).toString(); }catch{ calc='Error'; } display.textContent = calc; return; }
+  calc += t; display.textContent = calc;
+});
+
+/* ---------- Converters ---------- */
+function convertWeight(){ let v=Number(wValue.value)||0; let from=wFrom.value, to=wTo.value; let grams={kg:v*1000,g:v,lb:v*453.592}[from]; let out={kg:grams/1000,g:grams,lb:grams/453.592}[to]; wResult.textContent = `${v} ${from} = ${out.toFixed(4)} ${to}`;}
+function convertCurrency(){ let v=Number(cValue.value)||0; let usd=cFrom.value==='INR'? v/83 : v; let out=cTo.value==='INR'? usd*83 : usd; cResult.textContent = `${v} ${cFrom.value} = ${out.toFixed(3)} ${cTo.value}`;}
+function convertDistance(){ let v=Number(dValue.value)||0; let m=dFrom.value==='km'? v*1000 : v; let out=dTo.value==='km'? m/1000 : m; dResult.textContent = `${v} ${dFrom.value} = ${out.toFixed(4)} ${dTo.value}`;}
+
+/* ---------- QR generation + interstitial ---------- */
+let qrDataURL = '', pendingContent = '', interstitialTimeout = null;
+
+// read file as data URL
+function readFileAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsDataURL(file); }); }
+
+function renderQR(content){
+  const preview = document.getElementById('qrPreview');
+  const qrMsg = document.getElementById('qrMsg');
+  const note = document.getElementById('screenshotNote');
+  preview.innerHTML = ''; qrDataURL='';
+  const holder = document.createElement('div'); preview.appendChild(holder);
+
+  // keep QR content length reasonable
+  let final = String(content||'');
+  if(final.length > 1200) final = final.slice(0,900) + '...';
+
+  try{
+    const q = new QRCode(holder, { text: final, width:300, height:300 });
+    setTimeout(()=>{
+      const canvas = holder.querySelector('canvas');
+      const img = holder.querySelector('img');
+      if(canvas){
+        try{ qrDataURL = canvas.toDataURL('image/png'); const im = document.createElement('img'); im.src = qrDataURL; im.style.width='200px'; preview.innerHTML=''; preview.appendChild(im); qrMsg.textContent='QR ready'; note.style.display='none'; }catch(e){ preview.innerHTML='<div style="color:#b12727">QR generation failed</div>'; qrDataURL=''; note.style.display='block'; }
+      } else if(img){
+        // convert image to dataURL by drawing on canvas
+        const tmp = new Image(); tmp.crossOrigin='anonymous';
+        tmp.onload = function(){ try{ const c=document.createElement('canvas'); c.width=tmp.width; c.height=tmp.height; c.getContext('2d').drawImage(tmp,0,0); qrDataURL = c.toDataURL('image/png'); preview.innerHTML=''; const pi=document.createElement('img'); pi.src=qrDataURL; pi.style.width='200px'; preview.appendChild(pi); qrMsg.textContent='QR ready'; note.style.display='none'; }catch(err){ preview.innerHTML='<div style="color:#b12727">QR generation failed</div>'; note.style.display='block'; } };
+        tmp.onerror = function(){ preview.innerHTML='<div style="color:#b12727">QR generation failed</div>'; note.style.display='block'; };
+        tmp.src = img.src;
+      } else { preview.innerHTML='<div style="color:#b12727">QR generation failed</div>'; note.style.display='block'; }
+    },120);
+  }catch(err){
+    preview.innerHTML='<div style="color:#b12727">QR generation failed</div>'; note.style.display='block';
+  }
+}
+
+function showInterstitialThenGenerate(){
+  if(!pendingContent){ document.getElementById('qrMsg').textContent='Nothing to generate'; return; }
+  let interDiv = document.getElementById('interstitialBox');
+  interDiv.innerHTML = "<script type='text/javascript' src='//pl28156315.effectivegatecpm.com/b0/b1/55/b0b1558127916e4719db92df414595d2.js'><\/script>";
+  if(interstitialTimeout) clearTimeout(interstitialTimeout);
+  interstitialTimeout = setTimeout(()=>{ interstitialTimeout=null; renderQR(pendingContent); pendingContent=''; interDiv.innerHTML=''; },3800);
+}
+
+document.getElementById('makeQR').addEventListener('click', async ()=>{
+  const txt = (document.getElementById('qrText').value||'').trim();
+  const fileEl = document.getElementById('qrFile');
+  const qrMsg = document.getElementById('qrMsg');
+  qrMsg.textContent=''; pendingContent=''; qrDataURL='';
+
+  if(!txt && (!fileEl || fileEl.files.length===0)){ qrMsg.textContent='Enter text or pick file'; return; }
+  if(fileEl && fileEl.files.length){
+    try{ qrMsg.textContent='Preparing...'; const data = await readFileAsDataURL(fileEl.files[0]); if(data.length>1800){ pendingContent = `File:${fileEl.files[0].name}`; qrMsg.textContent='File large — using filename only'; } else pendingContent = data; }catch(e){ qrMsg.textContent='File read error'; return; }
+  } else pendingContent = txt;
+
+  qrMsg.textContent='Showing ad...';
+  showInterstitialThenGenerate();
+});
+
+// download button
+document.getElementById('downloadQR').addEventListener('click', ()=>{
+  if(qrDataURL){ const a=document.createElement('a'); a.href=qrDataURL; a.download='toolbox-qr.png'; document.body.appendChild(a); a.click(); a.remove(); }
+  else { const img = document.getElementById('qrPreview').querySelector('img'); if(img && img.src) window.open(img.src,'_blank'); else document.getElementById('qrMsg').textContent='No QR to download'; }
+});
+document.getElementById('openQR').addEventListener('click', ()=>{ if(qrDataURL) window.open(qrDataURL,'_blank'); else { const img = document.getElementById('qrPreview').querySelector('img'); if(img && img.src) window.open(img.src,'_blank'); else document.getElementById('qrMsg').textContent='No QR to open'; } });
+
+</script>
+</body>
+</html>
